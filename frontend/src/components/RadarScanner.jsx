@@ -2,7 +2,8 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function RadarScanner({ mode }) {
-  const isScanning = mode === 'listening' || mode === 'broadcasting';
+  const isScanning = mode === 'listening' || mode === 'broadcasting' || mode === 'shaking';
+  const isShaking = mode === 'shaking';
   
   return (
     <div className="ripple-container">
@@ -10,10 +11,15 @@ export default function RadarScanner({ mode }) {
         layout
         className="ripple-dot"
         animate={{
-          backgroundColor: mode === 'connected' ? 'var(--success)' : 'var(--primary)',
-          scale: mode === 'connected' ? 1.2 : 1
+          backgroundColor: mode === 'connected' ? 'var(--success)' : (isShaking ? '#fbbf24' : 'var(--primary)'),
+          scale: mode === 'connected' ? 1.2 : 1,
+          x: isShaking ? [0, -10, 10, -10, 10, 0] : 0,
         }}
-        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        transition={{ 
+          backgroundColor: { type: "spring", stiffness: 300, damping: 20 },
+          scale: { type: "spring", stiffness: 300, damping: 20 },
+          x: isShaking ? { duration: 0.5, repeat: Infinity } : { duration: 0.2 }
+        }}
       />
       
       <AnimatePresence>

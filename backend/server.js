@@ -45,9 +45,49 @@ const PORT = process.env.PORT || 3001;
 
 // Stores information about rooms and connected clients
 const rooms = new Map();
+const activeShakers = new Map(); // socketId -> timestamp
 
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
+
+  // Shake-to-Sync logic
+  socket.on('shake-sync', () => {
+    const now = Date.now();
+    console.log(`[Shake] User ${socket.id} is shaking`);
+
+    // Find if anyone else is shaking within 2 seconds
+    let matchId = null;
+    for (const [id, time] of activeShakers.entries()) {
+      if (id !== socket.id && Math.abs(now - time) < 2000) {
+        matchId = id;
+        break;
+      }
+    }
+
+    if (matchId) {
+      // Match found!
+      const roomId = `shake-${Math.floor(Math.random() * 9000) + 1000}`;
+      console.log(`[Shake] Match found! ${socket.id} <-> ${matchId} in room ${roomId}`);
+      
+      // Notify both peers
+      io.to(socket.id).emit('shake-matched', { roomId, role: 'sender' });
+      io.to(matchId).emit('shake-matched', { roomId, role: 'receiver' });
+      
+      // Clean up
+      activeShakers.delete(matchId);
+    } else {
+      // Add to queue
+      activeShakers.set(socket.id, now);
+      
+      // Remove after 3 seconds if no match
+      setTimeout(() => {
+        if (activeShakers.get(socket.id) === now) {
+          activeShakers.delete(socket.id);
+          socket.emit('shake-timeout');
+        }
+      }, 3000);
+    }
+  });
 
   // User joins a room based on the frequency detected
   socket.on('join-room', (roomId) => {
@@ -98,6 +138,7 @@ io.on('connection', (socket) => {
   // Disconnection logic
   socket.on('disconnect', () => {
     console.log(`User disconnected: ${socket.id}`);
+    activeShakers.delete(socket.id);
     rooms.forEach((users, roomId) => {
       if (users.has(socket.id)) {
         users.delete(socket.id);

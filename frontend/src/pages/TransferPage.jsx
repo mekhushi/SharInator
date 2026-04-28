@@ -4,6 +4,8 @@ import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import RadarScanner from '../components/RadarScanner';
 import { generateRoomFrequency, startBroadcast, stopBroadcast, startListening, stopListening } from '../services/audioHandshake';
 import { WebRTCService } from '../services/webrtc';
+import { requestMotionPermission, startShakeDetection } from '../services/shakeService';
+import { Zap } from 'lucide-react';
 import '../index.css';
 
 export default function TransferPage({ onBack }) {
@@ -15,18 +17,25 @@ export default function TransferPage({ onBack }) {
   const [isTransferring, setIsTransferring] = useState(false);
   const [currentRoomId, setCurrentRoomId] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [isShakeEnabled, setIsShakeEnabled] = useState(false);
   
   const webrtcRef = useRef(null);
+  const shakeCleanupRef = useRef(null);
 
   const cleanup = () => {
     stopBroadcast();
     stopListening();
+    if (shakeCleanupRef.current) {
+      shakeCleanupRef.current();
+      shakeCleanupRef.current = null;
+    }
     if (webrtcRef.current) {
       webrtcRef.current.disconnect();
       webrtcRef.current = null;
     }
     setMode('idle');
     setRole(null);
+    setIsShakeEnabled(false);
     setStatusText('Ready to send or receive files');
     setTransferProgress(0);
     setReceivedFile(null);
@@ -48,11 +57,81 @@ export default function TransferPage({ onBack }) {
     setCurrentRoomId(roomId);
     await startBroadcast(roomId);
     
-    webrtcRef.current = new WebRTCService(roomId, true, {
+    initializeWebRTC(roomId, true);
+  };
+
+  const handleReceive = async () => {
+    cleanup();
+    setRole('receiver');
+    setMode('listening');
+    setStatusText('Listening for nearby devices...');
+    
+    try {
+      await startListening((roomId) => {
+        setStatusText('Device found. Connecting...');
+        setMode('connected');
+        initializeWebRTC(roomId, false);
+      });
+    } catch (err) {
+      console.error(err);
+      setStatusText('Mic access denied or error. Try manual join.');
+      setMode('idle');
+    }
+  };
+
+  const handleShakeStart = async () => {
+    cleanup();
+    const granted = await requestMotionPermission();
+    if (!granted) {
+      setStatusText('Motion permission denied.');
+      return;
+    }
+
+    setMode('shaking');
+    setStatusText('Shake both devices together now!');
+    setIsShakeEnabled(true);
+
+    // Initialize WebRTC with a dummy ID just to get the socket
+    webrtcRef.current = new WebRTCService('pending', false, {
+      onError: (msg) => setStatusText(`Error: ${msg}`),
+    });
+    webrtcRef.current.connect();
+
+    // Listen for shake match from server
+    const socket = webrtcRef.current.socket;
+    
+    const onMatch = ({ roomId, role: assignedRole }) => {
+      console.log(`[Shake] Matched into room ${roomId} as ${assignedRole}`);
+      setStatusText('Matched! Connecting...');
+      setRole(assignedRole);
+      setMode('connected');
+      
+      // Re-initialize with real roomId
+      webrtcRef.current.disconnect();
+      initializeWebRTC(roomId, assignedRole === 'sender');
+    };
+
+    const onTimeout = () => {
+      setStatusText('No match found. Try shaking again.');
+      setMode('idle');
+      setIsShakeEnabled(false);
+    };
+
+    socket.on('shake-matched', onMatch);
+    socket.on('shake-timeout', onTimeout);
+
+    shakeCleanupRef.current = startShakeDetection(() => {
+      socket.emit('shake-sync');
+      setStatusText('Shake detected! Waiting for partner...');
+    });
+  };
+
+  const initializeWebRTC = (roomId, isInitiator) => {
+    webrtcRef.current = new WebRTCService(roomId, isInitiator, {
       onPeerConnected: () => {
         stopBroadcast();
         setMode('connected');
-        setStatusText('Connected. You can now send files.');
+        setStatusText(isInitiator ? 'Connected. You can now send files.' : 'Connected. Waiting for file...');
       },
       onError: (msg) => {
         setStatusText(`Error: ${msg}`);
@@ -77,52 +156,6 @@ export default function TransferPage({ onBack }) {
       }
     });
     webrtcRef.current.connect();
-  };
-
-  const handleReceive = async () => {
-    cleanup();
-    setRole('receiver');
-    setMode('listening');
-    setStatusText('Listening for nearby devices...');
-    
-    try {
-      await startListening((roomId) => {
-        setStatusText('Device found. Connecting...');
-        setMode('connected');
-        
-        webrtcRef.current = new WebRTCService(roomId, false, {
-          onPeerConnected: () => {
-            setStatusText('Connected. Waiting for file...');
-          },
-          onError: (msg) => {
-            setStatusText(`Error: ${msg}`);
-            setTimeout(cleanup, 4000);
-          },
-          onTransferStart: (meta) => {
-            setIsTransferring(true);
-            setStatusText(`Receiving ${meta.name}`);
-          },
-          onProgress: (progress) => {
-            setTransferProgress(progress);
-          },
-          onFileReceived: (meta, blob) => {
-            setIsTransferring(false);
-            setStatusText('File received successfully.');
-            const url = URL.createObjectURL(blob);
-            setReceivedFile({ name: meta.name, url });
-          },
-          onPeerDisconnected: () => {
-            setStatusText('Peer disconnected.');
-            setTimeout(cleanup, 3000);
-          }
-        });
-        webrtcRef.current.connect();
-      });
-    } catch (err) {
-      console.error(err);
-      setStatusText('Mic access denied or error. Try manual join.');
-      setMode('idle');
-    }
   };
 
   const handleFileDrop = async (e) => {
@@ -221,6 +254,14 @@ export default function TransferPage({ onBack }) {
                   </button>
                 </div>
                 
+                <button 
+                  className="btn btn-secondary shake-btn" 
+                  onClick={handleShakeStart}
+                  style={{ width: '100%', borderStyle: 'dashed', borderColor: 'var(--text-secondary)' }}
+                >
+                  <Zap size={18} style={{ color: '#fbbf24' }} /> Shake-to-Sync
+                </button>
+                
                 <div className="manual-join-section">
                   <div className="divider"><span>OR</span></div>
                   <div className="manual-input-wrapper">
@@ -238,29 +279,7 @@ export default function TransferPage({ onBack }) {
                           setRole('receiver');
                           setMode('connected');
                           setStatusText('Connecting manually...');
-                          
-                          webrtcRef.current = new WebRTCService(val, false, {
-                            onPeerConnected: () => setStatusText('Connected. Waiting for file...'),
-                            onError: (msg) => {
-                              setStatusText(`Error: ${msg}`);
-                              setTimeout(cleanup, 4000);
-                            },
-                            onTransferStart: (meta) => {
-                              setIsTransferring(true);
-                              setStatusText(`Receiving ${meta.name}`);
-                            },
-                            onProgress: (progress) => setTransferProgress(progress),
-                            onFileReceived: (meta, blob) => {
-                              setIsTransferring(false);
-                              setStatusText('File received successfully.');
-                              setReceivedFile({ name: meta.name, url: URL.createObjectURL(blob) });
-                            },
-                            onPeerDisconnected: () => {
-                              setStatusText('Peer disconnected.');
-                              setTimeout(cleanup, 3000);
-                            }
-                          });
-                          webrtcRef.current.connect();
+                          initializeWebRTC(val, false);
                         }
                       }}
                     >
