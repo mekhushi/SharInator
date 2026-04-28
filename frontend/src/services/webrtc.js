@@ -4,10 +4,11 @@ import { io } from 'socket.io-client';
 const isProduction = import.meta.env.PROD;
 const isVercel = window.location.hostname.includes('vercel.app');
 
-const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || 
-  (isProduction && isVercel ? window.location.origin : window.location.origin);
+const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
 
-const SOCKET_PATH = isProduction && isVercel ? '/_/backend/socket.io' : '/socket.io';
+// Only use the /_/backend prefix if we are connecting to the same origin as the frontend
+const isSameOrigin = !import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_BACKEND_URL.includes(window.location.hostname);
+const SOCKET_PATH = (isProduction && isVercel && isSameOrigin) ? '/_/backend/socket.io' : '/socket.io';
 
 export class WebRTCService {
   constructor(roomId, isInitiator, callbacks) {
@@ -24,6 +25,10 @@ export class WebRTCService {
   connect() {
     this.socket = io(SOCKET_URL, {
       path: SOCKET_PATH
+    });
+
+    this.socket.on('connect_error', (err) => {
+      console.error('[Signaling] Connection error:', err.message);
     });
 
     this.socket.on('connect', () => {
