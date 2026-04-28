@@ -5,14 +5,33 @@ const cors = require('cors');
 const path = require('path');
 
 const app = express();
-app.use(cors());
+
+// Update CORS for production
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://share-inator.vercel.app', // Update with actual Vercel URL
+  /\.vercel\.app$/
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.some(o => typeof o === 'string' ? o === origin : o.test(origin))) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST'],
+  credentials: true
+}));
 
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: '*', // For development
-    methods: ['GET', 'POST']
+    origin: allowedOrigins,
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 });
 
@@ -78,15 +97,6 @@ io.on('connection', (socket) => {
       }
     });
   });
-});
-
-// Serve static files from the frontend build
-const frontendPath = path.join(__dirname, '../frontend/dist');
-app.use(express.static(frontendPath));
-
-// Catch-all route to serve the frontend for any non-API requests
-app.get('*', (req, res) => {
-  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 server.listen(PORT, () => {

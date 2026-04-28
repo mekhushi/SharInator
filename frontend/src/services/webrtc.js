@@ -1,6 +1,13 @@
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
+// In production on Vercel, the backend is proxied under /_/backend
+const isProduction = import.meta.env.PROD;
+const isVercel = window.location.hostname.includes('vercel.app');
+
+const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || 
+  (isProduction && isVercel ? window.location.origin : window.location.origin);
+
+const SOCKET_PATH = isProduction && isVercel ? '/_/backend/socket.io' : '/socket.io';
 
 export class WebRTCService {
   constructor(roomId, isInitiator, callbacks) {
@@ -15,7 +22,9 @@ export class WebRTCService {
   }
 
   connect() {
-    this.socket = io(SOCKET_URL);
+    this.socket = io(SOCKET_URL, {
+      path: SOCKET_PATH
+    });
 
     this.socket.on('connect', () => {
       console.log('[Signaling] Connected to server, joining room:', this.roomId);
