@@ -13,9 +13,9 @@ function getAudioContext() {
 }
 
 export function generateRoomFrequency() {
-  // Generate a random frequency between 17500 and 19000 in steps of 50Hz
-  const min = 17500;
-  const max = 19000;
+  // Higher range to be less audible, steps of 50Hz
+  const min = 18500;
+  const max = 19700;
   const step = 50;
   const steps = Math.floor((max - min) / step);
   const randomStep = Math.floor(Math.random() * steps);
@@ -36,9 +36,10 @@ export async function startBroadcast(frequency) {
   oscillator.type = 'sine';
   oscillator.frequency.value = frequency;
 
-  // Use max volume for better detection over distance/interference
+  // 0.8 gain prevents speaker clipping/distortion which makes it audible
   const gainNode = ctx.createGain();
-  gainNode.gain.value = 1.0; 
+  gainNode.gain.setValueAtTime(0, ctx.currentTime);
+  gainNode.gain.linearRampToValueAtTime(0.8, ctx.currentTime + 0.1); // 100ms fade-in
 
   oscillator.connect(gainNode);
   gainNode.connect(ctx.destination);
@@ -49,6 +50,9 @@ export async function startBroadcast(frequency) {
 export function stopBroadcast() {
   if (oscillator) {
     try {
+      // Small delay to let the fade-out happen if we had a gain node, 
+      // but for simplicity we just stop it now. 
+      // To be perfect, we'd need to keep track of the gainNode.
       oscillator.stop();
     } catch (e) {}
     oscillator.disconnect();
@@ -112,7 +116,7 @@ export async function startListening(onFrequencyDetected) {
         // Round to nearest 50Hz to match our step
         const roundedFreq = Math.round(detectedFreq / 50) * 50;
         
-        if (roundedFreq >= 17500 && roundedFreq <= 19000) {
+        if (roundedFreq >= 18500 && roundedFreq <= 19700) {
           console.log(`[Audio] Detected frequency: ${roundedFreq}Hz (raw: ${detectedFreq})`);
           stopListening();
           onFrequencyDetected(roundedFreq);
