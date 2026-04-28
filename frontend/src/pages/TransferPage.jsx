@@ -54,6 +54,19 @@ export default function TransferPage({ onBack }) {
         setMode('connected');
         setStatusText('Connected.');
       },
+      onTransferStart: (meta) => {
+        setIsTransferring(true);
+        setStatusText(`Receiving ${meta.name}`);
+      },
+      onProgress: (progress) => {
+        setTransferProgress(progress);
+      },
+      onFileReceived: (meta, blob) => {
+        setIsTransferring(false);
+        setStatusText('File received.');
+        const url = URL.createObjectURL(blob);
+        setReceivedFile({ name: meta.name, url });
+      },
       onPeerDisconnected: () => {
         setStatusText('Disconnected.');
         setTimeout(cleanup, 3000);
@@ -246,7 +259,7 @@ export default function TransferPage({ onBack }) {
               </motion.div>
             )}
 
-            {mode === 'connected' && role === 'sender' && !isTransferring && (
+            {mode === 'connected' && !isTransferring && (
               <motion.div
                 key="dropzone"
                 layout

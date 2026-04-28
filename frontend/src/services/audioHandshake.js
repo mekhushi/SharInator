@@ -12,10 +12,12 @@ function getAudioContext() {
   return audioContext;
 }
 
-const FREQUENCIES = [18000, 18300, 18600, 18900, 19200];
+const FREQUENCIES = [17000, 17300, 17600, 17900, 18200];
+const MIN_THRESHOLD = -80;
+const STABILITY_REQUIRED = 5; // Must detect same freq for 5 frames
+const MATCH_WINDOW = 200; // Hz
 
 export function generateRoomFrequency() {
-  // Use a fixed set of widely-spaced frequencies for robust matching
   const randomIndex = Math.floor(Math.random() * FREQUENCIES.length);
   return FREQUENCIES[randomIndex];
 }
@@ -76,12 +78,14 @@ export async function startListening(onFrequencyDetected) {
     const source = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser();
     
-    // Back to 8192 for better resolution
     analyser.fftSize = 8192;
     source.connect(analyser);
 
     const dataArray = new Float32Array(analyser.frequencyBinCount);
     const sampleRate = ctx.sampleRate;
+
+    let lastMatch = null;
+    let matchCount = 0;
 
     const analyze = () => {
       if (!isListening) return;
@@ -91,9 +95,9 @@ export async function startListening(onFrequencyDetected) {
       let maxVal = -Infinity;
       let maxIndex = -1;
 
-      // Range check 17kHz to 20kHz
-      const minIndex = Math.floor(17000 * analyser.fftSize / sampleRate);
-      const maxSearchIndex = Math.floor(20000 * analyser.fftSize / sampleRate);
+      // Range check 16.5kHz to 19kHz
+      const minIndex = Math.floor(16500 * analyser.fftSize / sampleRate);
+      const maxSearchIndex = Math.floor(19000 * analyser.fftSize / sampleRate);
 
       for (let i = minIndex; i < maxSearchIndex; i++) {
         if (dataArray[i] > maxVal) {
@@ -102,20 +106,32 @@ export async function startListening(onFrequencyDetected) {
         }
       }
 
-      // Threshold at -75dB to avoid noise but keep sensitivity
-      if (maxVal > -75) {
+      if (maxVal > MIN_THRESHOLD) {
         const detectedFreq = maxIndex * sampleRate / analyser.fftSize;
         
         const closest = FREQUENCIES.reduce((prev, curr) => 
           Math.abs(curr - detectedFreq) < Math.abs(prev - detectedFreq) ? curr : prev
         );
 
-        if (Math.abs(closest - detectedFreq) < 150) {
-          console.log(`[Audio] Detected: ${detectedFreq}Hz, Matched: ${closest}Hz`);
-          stopListening();
-          onFrequencyDetected(closest);
-          return;
+        if (Math.abs(closest - detectedFreq) < MATCH_WINDOW) {
+          if (closest === lastMatch) {
+            matchCount++;
+          } else {
+            lastMatch = closest;
+            matchCount = 1;
+          }
+
+          if (matchCount >= STABILITY_REQUIRED) {
+            console.log(`[Audio] Confirmed Detection: ${closest}Hz (Count: ${matchCount})`);
+            stopListening();
+            onFrequencyDetected(closest);
+            return;
+          }
+        } else {
+          matchCount = 0;
         }
+      } else {
+        matchCount = 0;
       }
 
       listenFrameId = requestAnimationFrame(analyze);
@@ -140,3 +156,4 @@ export function stopListening() {
   }
   console.log('[Audio] Stopped listening');
 }
+
