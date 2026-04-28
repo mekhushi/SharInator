@@ -13,9 +13,9 @@ function getAudioContext() {
 }
 
 export function generateRoomFrequency() {
-  // Generate a random frequency between 18000 and 19500 in steps of 50Hz
-  const min = 18000;
-  const max = 19500;
+  // Generate a random frequency between 17500 and 19000 in steps of 50Hz
+  const min = 17500;
+  const max = 19000;
   const step = 50;
   const steps = Math.floor((max - min) / step);
   const randomStep = Math.floor(Math.random() * steps);
@@ -36,9 +36,9 @@ export async function startBroadcast(frequency) {
   oscillator.type = 'sine';
   oscillator.frequency.value = frequency;
 
-  // Reduce volume slightly to avoid clipping, though it's inaudible
+  // Use max volume for better detection over distance/interference
   const gainNode = ctx.createGain();
-  gainNode.gain.value = 0.9; // Increased volume for better detection
+  gainNode.gain.value = 1.0; 
 
   oscillator.connect(gainNode);
   gainNode.connect(ctx.destination);
@@ -94,8 +94,8 @@ export async function startListening(onFrequencyDetected) {
       let maxVal = -Infinity;
       let maxIndex = -1;
 
-      // Only check frequencies above 17.5kHz to avoid voice/noise
-      const minIndex = Math.floor(17500 * analyser.fftSize / sampleRate);
+      // Only check frequencies above 17kHz to avoid voice/noise
+      const minIndex = Math.floor(17000 * analyser.fftSize / sampleRate);
       const maxSearchIndex = Math.floor(20000 * analyser.fftSize / sampleRate);
 
       for (let i = minIndex; i < maxSearchIndex; i++) {
@@ -105,13 +105,14 @@ export async function startListening(onFrequencyDetected) {
         }
       }
 
-      // Threshold in dB. -70 is more sensitive than -50
-      if (maxVal > -70) {
+      // Lower threshold for better sensitivity on laptops/desktops
+      // -80 is very sensitive, which we need for small phone speakers
+      if (maxVal > -80) {
         const detectedFreq = maxIndex * sampleRate / analyser.fftSize;
         // Round to nearest 50Hz to match our step
         const roundedFreq = Math.round(detectedFreq / 50) * 50;
         
-        if (roundedFreq >= 18000 && roundedFreq <= 19500) {
+        if (roundedFreq >= 17500 && roundedFreq <= 19000) {
           console.log(`[Audio] Detected frequency: ${roundedFreq}Hz (raw: ${detectedFreq})`);
           stopListening();
           onFrequencyDetected(roundedFreq);
