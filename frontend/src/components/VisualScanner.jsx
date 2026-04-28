@@ -8,9 +8,18 @@ export default function VisualScanner({ onMatch, onError }) {
   const [detectedSequence, setDetectedSequence] = useState([]);
   const [lastColor, setLastColor] = useState(null);
 
+  const onMatchRef = useRef(onMatch);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    onMatchRef.current = onMatch;
+    onErrorRef.current = onError;
+  }, [onMatch, onError]);
+
   useEffect(() => {
     let stream = null;
     let animationId = null;
+    let isMounted = true;
 
     const startCamera = async () => {
       try {
@@ -18,73 +27,70 @@ export default function VisualScanner({ onMatch, onError }) {
           video: { facingMode: 'environment' },
           audio: false 
         });
-        if (videoRef.current) {
+        if (videoRef.current && isMounted) {
           videoRef.current.srcObject = stream;
         }
       } catch (err) {
         console.error('Camera access denied:', err);
-        onError('Camera access denied. Please allow camera permissions.');
+        if (onErrorRef.current) onErrorRef.current('Camera access denied. Please allow camera permissions.');
       }
     };
 
     const processFrame = () => {
-      if (!videoRef.current || !canvasRef.current) return;
+      if (!isMounted || !videoRef.current || !canvasRef.current) return;
       
       const video = videoRef.current;
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-      // Draw center 50x50 area to canvas
-      const size = 50;
-      const x = (video.videoWidth - size) / 2;
-      const y = (video.videoHeight - size) / 2;
-      
       if (video.videoWidth > 0) {
+        const size = 50;
+        const x = (video.videoWidth - size) / 2;
+        const y = (video.videoHeight - size) / 2;
+        
         ctx.drawImage(video, x, y, size, size, 0, 0, size, size);
         const imageData = ctx.getImageData(0, 0, size, size);
         const data = imageData.data;
 
-        // Average colors
         let r = 0, g = 0, b = 0;
         for (let i = 0; i < data.length; i += 4) {
-          r += data[i];
-          g += data[i + 1];
-          b += data[i + 2];
+          r += data[i]; g += data[i + 1]; b += data[i + 2];
         }
         const count = data.length / 4;
-        r /= count;
-        g /= count;
-        b /= count;
+        r /= count; g /= count; b /= count;
 
         const color = detectColor(r, g, b);
         
-        if (color && color.name !== lastColor) {
-          setLastColor(color.name);
-          setDetectedSequence(prev => {
-            const next = [...prev, color].slice(-10); // Keep last 10
+        // We handle sequence detection locally and only call onMatchRef when done
+        setDetectedSequence(prev => {
+          if (color && (!lastColor || color.name !== lastColor)) {
+            const next = [...prev, color].slice(-10);
             const matchedRoom = detectRoomFromSequence(next);
-            if (matchedRoom) {
-              onMatch(matchedRoom);
+            if (matchedRoom && onMatchRef.current) {
+              onMatchRef.current(matchedRoom);
             }
             return next;
-          });
-        } else if (!color) {
-          setLastColor(null);
-        }
+          }
+          return prev;
+        });
+        
+        if (color) setLastColor(color.name);
+        else setLastColor(null);
       }
 
       animationId = requestAnimationFrame(processFrame);
     };
 
     startCamera().then(() => {
-      animationId = requestAnimationFrame(processFrame);
+      if (isMounted) animationId = requestAnimationFrame(processFrame);
     });
 
     return () => {
+      isMounted = false;
       if (stream) stream.getTracks().forEach(track => track.stop());
       if (animationId) cancelAnimationFrame(animationId);
     };
-  }, [onMatch, onError, lastColor]);
+  }, []); // Only run once on mount
 
   return (
     <div className="visual-scanner-container">
