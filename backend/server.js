@@ -28,7 +28,6 @@ app.use(cors({
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  path: '/_/backend/socket.io', // Explicitly match the Vercel routePrefix
   cors: {
     origin: allowedOrigins,
     methods: ['GET', 'POST'],
