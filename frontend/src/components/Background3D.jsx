@@ -4,7 +4,7 @@ import { MeshDistortMaterial, Sphere, Environment, Float } from '@react-three/dr
 import { EffectComposer, Bloom, ChromaticAberration } from '@react-three/postprocessing';
 import { BlendFunction } from 'postprocessing';
 
-function AnimatedBlob() {
+function AnimatedBlob({ isMobile }) {
   const meshRef = useRef();
 
   useFrame((state) => {
@@ -25,8 +25,8 @@ function AnimatedBlob() {
   });
 
   return (
-    <Float speed={2} rotationIntensity={0.5} floatIntensity={1}>
-      <Sphere ref={meshRef} args={[1.5, 64, 64]} scale={1.5}>
+    <Float speed={isMobile ? 1 : 2} rotationIntensity={0.5} floatIntensity={1}>
+      <Sphere ref={meshRef} args={[1.5, isMobile ? 32 : 64, isMobile ? 32 : 64]} scale={1.5}>
         <MeshDistortMaterial
           color="#8b5cf6"
           attach="material"
@@ -44,10 +44,10 @@ function AnimatedBlob() {
   );
 }
 
-function SoundParticles() {
+function SoundParticles({ isMobile }) {
   const pointsRef = useRef();
   
-  const particleCount = 300;
+  const particleCount = isMobile ? 100 : 300;
   const positions = new Float32Array(particleCount * 3);
   
   for(let i=0; i<particleCount * 3; i+=3) {
@@ -83,30 +83,34 @@ function SoundParticles() {
 }
 
 export default function Background3D() {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: -1, background: '#09090b', overflow: 'hidden' }}>
-      <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
+      <Canvas camera={{ position: [0, 0, 5], fov: 45 }} dpr={isMobile ? 1 : [1, 2]}>
         <Suspense fallback={null}>
           <ambientLight intensity={0.5} />
           <directionalLight position={[10, 10, 5]} intensity={2} color="#00f0ff" />
           <directionalLight position={[-10, -10, -5]} intensity={3} color="#ff00ff" />
           
-          <AnimatedBlob />
-          <SoundParticles />
+          <AnimatedBlob isMobile={isMobile} />
+          <SoundParticles isMobile={isMobile} />
           <Environment preset="city" />
 
-          {/* Post-processing effects to add intense cinematic "wow" factor */}
-          <EffectComposer>
-            <Bloom 
-              luminanceThreshold={0.5} 
-              luminanceSmoothing={0.9} 
-              intensity={1.5} 
-            />
-            <ChromaticAberration 
-              blendFunction={BlendFunction.NORMAL} 
-              offset={[0.002, 0.002]} 
-            />
-          </EffectComposer>
+          {/* Only use heavy post-processing on non-mobile devices */}
+          {!isMobile && (
+            <EffectComposer>
+              <Bloom 
+                luminanceThreshold={0.5} 
+                luminanceSmoothing={0.9} 
+                intensity={1.5} 
+              />
+              <ChromaticAberration 
+                blendFunction={BlendFunction.NORMAL} 
+                offset={[0.002, 0.002]} 
+              />
+            </EffectComposer>
+          )}
         </Suspense>
       </Canvas>
       {/* Overlay gradient to softly blend 3D into the dark app background */}

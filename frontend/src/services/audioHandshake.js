@@ -77,7 +77,7 @@ export async function startListening(onFrequencyDetected) {
     const source = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser();
     
-    analyser.fftSize = 8192;
+    analyser.fftSize = 4096;
     source.connect(analyser);
 
     const dataArray = new Float32Array(analyser.frequencyBinCount);
