@@ -12,14 +12,12 @@ function getAudioContext() {
   return audioContext;
 }
 
+const FREQUENCIES = [18200, 18600, 19000, 19400, 19800];
+
 export function generateRoomFrequency() {
-  // Higher range to be less audible, steps of 50Hz
-  const min = 18500;
-  const max = 19700;
-  const step = 50;
-  const steps = Math.floor((max - min) / step);
-  const randomStep = Math.floor(Math.random() * steps);
-  return min + randomStep * step;
+  // Use a fixed set of widely-spaced frequencies for robust matching
+  const randomIndex = Math.floor(Math.random() * FREQUENCIES.length);
+  return FREQUENCIES[randomIndex];
 }
 
 export async function startBroadcast(frequency) {
@@ -50,9 +48,6 @@ export async function startBroadcast(frequency) {
 export function stopBroadcast() {
   if (oscillator) {
     try {
-      // Small delay to let the fade-out happen if we had a gain node, 
-      // but for simplicity we just stop it now. 
-      // To be perfect, we'd need to keep track of the gainNode.
       oscillator.stop();
     } catch (e) {}
     oscillator.disconnect();
@@ -82,12 +77,10 @@ export async function startListening(onFrequencyDetected) {
     const source = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser();
     
-    // High FFT size for better frequency resolution
     analyser.fftSize = 8192;
     source.connect(analyser);
 
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Float32Array(bufferLength);
+    const dataArray = new Float32Array(analyser.frequencyBinCount);
     const sampleRate = ctx.sampleRate;
 
     const analyze = () => {
@@ -98,9 +91,9 @@ export async function startListening(onFrequencyDetected) {
       let maxVal = -Infinity;
       let maxIndex = -1;
 
-      // Only check frequencies above 17kHz to avoid voice/noise
+      // Check range 17kHz to 21kHz
       const minIndex = Math.floor(17000 * analyser.fftSize / sampleRate);
-      const maxSearchIndex = Math.floor(20000 * analyser.fftSize / sampleRate);
+      const maxSearchIndex = Math.floor(21000 * analyser.fftSize / sampleRate);
 
       for (let i = minIndex; i < maxSearchIndex; i++) {
         if (dataArray[i] > maxVal) {
@@ -109,17 +102,20 @@ export async function startListening(onFrequencyDetected) {
         }
       }
 
-      // Lower threshold for better sensitivity on laptops/desktops
-      // -80 is very sensitive, which we need for small phone speakers
-      if (maxVal > -80) {
+      // High sensitivity threshold
+      if (maxVal > -85) {
         const detectedFreq = maxIndex * sampleRate / analyser.fftSize;
-        // Round to nearest 50Hz to match our step
-        const roundedFreq = Math.round(detectedFreq / 50) * 50;
         
-        if (roundedFreq >= 18500 && roundedFreq <= 19700) {
-          console.log(`[Audio] Detected frequency: ${roundedFreq}Hz (raw: ${detectedFreq})`);
+        // Fuzzy match: find the closest frequency in our list
+        const closest = FREQUENCIES.reduce((prev, curr) => 
+          Math.abs(curr - detectedFreq) < Math.abs(prev - detectedFreq) ? curr : prev
+        );
+
+        // If we are within 150Hz of a target frequency, we have a match
+        if (Math.abs(closest - detectedFreq) < 150) {
+          console.log(`[Audio] Match! Detected: ${detectedFreq}Hz, Matched to: ${closest}Hz`);
           stopListening();
-          onFrequencyDetected(roundedFreq);
+          onFrequencyDetected(closest);
           return;
         }
       }
