@@ -37,7 +37,8 @@ export function detectColor(r, g, b) {
   }
 
   // If distance is too far (e.g. black), return null
-  if (minDistance > 180) return null;
+  // Increased to 200 for extremely forgiving detection
+  if (minDistance > 200) return null;
   return closest;
 }
 

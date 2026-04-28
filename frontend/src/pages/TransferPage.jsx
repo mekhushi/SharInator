@@ -227,27 +227,28 @@ export default function TransferPage({ onBack }) {
         </motion.div>
 
         <motion.div layout className="content-section">
-          <RadarScanner mode={mode} />
-          <motion.p layout className="status-text">{statusText}</motion.p>
-          
-          {mode === 'broadcasting' && prismSequence.length > 0 && (
+          {mode === 'broadcasting' && prismSequence.length > 0 ? (
             <motion.div 
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               className="prism-pulsar"
               style={{ 
-                // Every even index is a color, every odd index is "off" (black)
                 backgroundColor: prismActiveColor % 2 === 0 
                   ? prismSequence[Math.floor(prismActiveColor / 2)].hex 
                   : '#000000',
-                color: prismActiveColor % 2 === 0 
-                  ? prismSequence[Math.floor(prismActiveColor / 2)].hex 
-                  : '#000000'
+                color: prismSequence[Math.floor(prismActiveColor / 2)].hex,
+                marginBottom: '1rem'
               }}
             >
               <div className="prism-pulsar-inner" />
             </motion.div>
+          ) : (
+            <RadarScanner mode={mode} />
           )}
+          
+          <motion.p layout className="status-text">{statusText}</motion.p>
+          
+          {/* Prism Pulsar moved up into content-section logic above */}
 
           {mode === 'prism-scan' && (
             <VisualScanner 
