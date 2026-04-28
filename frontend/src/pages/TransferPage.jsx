@@ -5,7 +5,9 @@ import RadarScanner from '../components/RadarScanner';
 import { generateRoomFrequency, startBroadcast, stopBroadcast, startListening, stopListening } from '../services/audioHandshake';
 import { WebRTCService } from '../services/webrtc';
 import { requestMotionPermission, startShakeDetection } from '../services/shakeService';
-import { Zap } from 'lucide-react';
+import { getSequenceFromId } from '../services/visualHandshake';
+import VisualScanner from '../components/VisualScanner';
+import { Zap, Aperture } from 'lucide-react';
 import '../index.css';
 
 export default function TransferPage({ onBack }) {
@@ -18,6 +20,8 @@ export default function TransferPage({ onBack }) {
   const [currentRoomId, setCurrentRoomId] = useState(null);
   const [copied, setCopied] = useState(false);
   const [isShakeEnabled, setIsShakeEnabled] = useState(false);
+  const [prismSequence, setPrismSequence] = useState([]);
+  const [prismActiveColor, setPrismActiveColor] = useState(0);
   
   const webrtcRef = useRef(null);
   const shakeCleanupRef = useRef(null);
@@ -55,9 +59,18 @@ export default function TransferPage({ onBack }) {
     
     const roomId = generateRoomFrequency();
     setCurrentRoomId(roomId);
+    setPrismSequence(getSequenceFromId(roomId));
     await startBroadcast(roomId);
     
     initializeWebRTC(roomId, true);
+  };
+
+  const handlePrismScan = () => {
+    cleanup();
+    setRole('receiver');
+    setMode('prism-scan');
+    setStatusText('Point camera at the sender Prism');
+    // Sequence will be detected by VisualScanner
   };
 
   const handleReceive = async () => {
@@ -181,6 +194,15 @@ export default function TransferPage({ onBack }) {
     }
   };
 
+  useEffect(() => {
+    if (mode === 'broadcasting' && prismSequence.length > 0) {
+      const interval = setInterval(() => {
+        setPrismActiveColor(prev => (prev + 1) % prismSequence.length);
+      }, 500); // Pulse every 500ms
+      return () => clearInterval(interval);
+    }
+  }, [mode, prismSequence]);
+
   return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.95 }}
@@ -207,6 +229,32 @@ export default function TransferPage({ onBack }) {
           <RadarScanner mode={mode} />
           <motion.p layout className="status-text">{statusText}</motion.p>
           
+          {mode === 'broadcasting' && prismSequence.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="prism-pulsar"
+              style={{ 
+                backgroundColor: prismSequence[prismActiveColor].hex,
+                color: prismSequence[prismActiveColor].hex
+              }}
+            >
+              <div className="prism-pulsar-inner" />
+            </motion.div>
+          )}
+
+          {mode === 'prism-scan' && (
+            <VisualScanner 
+              onMatch={(roomId) => {
+                setStatusText('Sequence matched! Connecting...');
+                setRole('receiver');
+                setMode('connected');
+                initializeWebRTC(roomId, false);
+              }}
+              onError={(msg) => setStatusText(msg)}
+            />
+          )}
+
           {mode === 'broadcasting' && currentRoomId && (
             <motion.div 
               initial={{ opacity: 0, y: 5 }} 
@@ -254,13 +302,22 @@ export default function TransferPage({ onBack }) {
                   </button>
                 </div>
                 
-                <button 
-                  className="btn btn-secondary shake-btn" 
-                  onClick={handleShakeStart}
-                  style={{ width: '100%', borderStyle: 'dashed', borderColor: 'var(--text-secondary)' }}
-                >
-                  <Zap size={18} style={{ color: '#fbbf24' }} /> Shake-to-Sync
-                </button>
+                <div className="button-group">
+                  <button 
+                    className="btn btn-secondary shake-btn" 
+                    onClick={handleShakeStart}
+                    style={{ flex: 1, borderStyle: 'dashed', borderColor: 'var(--border)' }}
+                  >
+                    <Zap size={18} style={{ color: '#fbbf24' }} /> Shake
+                  </button>
+                  <button 
+                    className="btn btn-secondary shake-btn" 
+                    onClick={handlePrismScan}
+                    style={{ flex: 1, borderStyle: 'dashed', borderColor: 'var(--border)' }}
+                  >
+                    <Aperture size={18} style={{ color: '#3b82f6' }} /> PrismLink
+                  </button>
+                </div>
                 
                 <div className="manual-join-section">
                   <div className="divider"><span>OR</span></div>
