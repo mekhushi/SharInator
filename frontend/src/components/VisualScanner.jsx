@@ -84,7 +84,7 @@ export default function VisualScanner({ onMatch, onError }) {
       if (stream) stream.getTracks().forEach(track => track.stop());
       if (animationId) cancelAnimationFrame(animationId);
     };
-  }, [targetSequence, onMatch, onError, lastColor]);
+  }, [onMatch, onError, lastColor]);
 
   return (
     <div className="visual-scanner-container">
