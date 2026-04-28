@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Download, Upload, ArrowUpRight, ArrowDownLeft, X, ArrowLeft, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import RadarScanner from '../components/RadarScanner';
