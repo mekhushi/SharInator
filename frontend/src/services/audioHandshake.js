@@ -12,10 +12,10 @@ function getAudioContext() {
   return audioContext;
 }
 
-const FREQUENCIES = [17000, 17300, 17600, 17900, 18200];
-const MIN_THRESHOLD = -80;
-const STABILITY_REQUIRED = 5; // Must detect same freq for 5 frames
-const MATCH_WINDOW = 200; // Hz
+const FREQUENCIES = [16000, 16500, 17000, 17500, 18000];
+const MIN_THRESHOLD = -75; // Slightly less sensitive to avoid noise but reliable
+const STABILITY_REQUIRED = 3; // Reduced from 5 for faster detection
+const MATCH_WINDOW = 300; // Hz - wider window for cheaper mics
 
 export function generateRoomFrequency() {
   const randomIndex = Math.floor(Math.random() * FREQUENCIES.length);
@@ -95,9 +95,9 @@ export async function startListening(onFrequencyDetected) {
       let maxVal = -Infinity;
       let maxIndex = -1;
 
-      // Range check 16.5kHz to 19kHz
-      const minIndex = Math.floor(16500 * analyser.fftSize / sampleRate);
-      const maxSearchIndex = Math.floor(19000 * analyser.fftSize / sampleRate);
+      // Range check 15.5kHz to 18.5kHz
+      const minIndex = Math.floor(15500 * analyser.fftSize / sampleRate);
+      const maxSearchIndex = Math.floor(18500 * analyser.fftSize / sampleRate);
 
       for (let i = minIndex; i < maxSearchIndex; i++) {
         if (dataArray[i] > maxVal) {

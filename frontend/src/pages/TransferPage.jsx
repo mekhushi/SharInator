@@ -52,7 +52,11 @@ export default function TransferPage({ onBack }) {
       onPeerConnected: () => {
         stopBroadcast();
         setMode('connected');
-        setStatusText('Connected.');
+        setStatusText('Connected. You can now send files.');
+      },
+      onError: (msg) => {
+        setStatusText(`Error: ${msg}`);
+        setTimeout(cleanup, 4000);
       },
       onTransferStart: (meta) => {
         setIsTransferring(true);
@@ -63,12 +67,12 @@ export default function TransferPage({ onBack }) {
       },
       onFileReceived: (meta, blob) => {
         setIsTransferring(false);
-        setStatusText('File received.');
+        setStatusText('File received successfully.');
         const url = URL.createObjectURL(blob);
         setReceivedFile({ name: meta.name, url });
       },
       onPeerDisconnected: () => {
-        setStatusText('Disconnected.');
+        setStatusText('Peer disconnected.');
         setTimeout(cleanup, 3000);
       }
     });
@@ -90,6 +94,10 @@ export default function TransferPage({ onBack }) {
           onPeerConnected: () => {
             setStatusText('Connected. Waiting for file...');
           },
+          onError: (msg) => {
+            setStatusText(`Error: ${msg}`);
+            setTimeout(cleanup, 4000);
+          },
           onTransferStart: (meta) => {
             setIsTransferring(true);
             setStatusText(`Receiving ${meta.name}`);
@@ -99,12 +107,12 @@ export default function TransferPage({ onBack }) {
           },
           onFileReceived: (meta, blob) => {
             setIsTransferring(false);
-            setStatusText('File received.');
+            setStatusText('File received successfully.');
             const url = URL.createObjectURL(blob);
             setReceivedFile({ name: meta.name, url });
           },
           onPeerDisconnected: () => {
-            setStatusText('Disconnected.');
+            setStatusText('Peer disconnected.');
             setTimeout(cleanup, 3000);
           }
         });
@@ -233,6 +241,10 @@ export default function TransferPage({ onBack }) {
                           
                           webrtcRef.current = new WebRTCService(val, false, {
                             onPeerConnected: () => setStatusText('Connected. Waiting for file...'),
+                            onError: (msg) => {
+                              setStatusText(`Error: ${msg}`);
+                              setTimeout(cleanup, 4000);
+                            },
                             onTransferStart: (meta) => {
                               setIsTransferring(true);
                               setStatusText(`Receiving ${meta.name}`);
@@ -240,11 +252,11 @@ export default function TransferPage({ onBack }) {
                             onProgress: (progress) => setTransferProgress(progress),
                             onFileReceived: (meta, blob) => {
                               setIsTransferring(false);
-                              setStatusText('File received.');
+                              setStatusText('File received successfully.');
                               setReceivedFile({ name: meta.name, url: URL.createObjectURL(blob) });
                             },
                             onPeerDisconnected: () => {
-                              setStatusText('Disconnected.');
+                              setStatusText('Peer disconnected.');
                               setTimeout(cleanup, 3000);
                             }
                           });

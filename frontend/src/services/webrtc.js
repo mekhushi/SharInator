@@ -23,16 +23,23 @@ export class WebRTCService {
   }
 
   connect() {
+    console.log(`[Signaling] Attempting to connect to: ${SOCKET_URL} with path: ${SOCKET_PATH}`);
+    
     this.socket = io(SOCKET_URL, {
-      path: SOCKET_PATH
+      path: SOCKET_PATH,
+      transports: ['websocket', 'polling'], // Allow fallback to polling
+      reconnectionAttempts: 5,
+      timeout: 10000
     });
-
+    
     this.socket.on('connect_error', (err) => {
       console.error('[Signaling] Connection error:', err.message);
+      if (this.callbacks.onError) this.callbacks.onError(`Connection failed: ${err.message}`);
     });
 
     this.socket.on('connect', () => {
-      console.log('[Signaling] Connected to server, joining room:', this.roomId);
+      console.log('[Signaling] Connected! ID:', this.socket.id);
+      console.log('[Signaling] Joining room:', this.roomId);
       this.socket.emit('join-room', this.roomId);
     });
 
