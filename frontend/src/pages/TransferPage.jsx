@@ -197,8 +197,9 @@ export default function TransferPage({ onBack }) {
   useEffect(() => {
     if (mode === 'broadcasting' && prismSequence.length > 0) {
       const interval = setInterval(() => {
-        setPrismActiveColor(prev => (prev + 1) % prismSequence.length);
-      }, 500); // Pulse every 500ms
+        // Toggle between color and "off" (blank)
+        setPrismActiveColor(prev => (prev + 1) % (prismSequence.length * 2));
+      }, 300); // Faster pulses (300ms color, 300ms off)
       return () => clearInterval(interval);
     }
   }, [mode, prismSequence]);
@@ -235,8 +236,13 @@ export default function TransferPage({ onBack }) {
               animate={{ opacity: 1, scale: 1 }}
               className="prism-pulsar"
               style={{ 
-                backgroundColor: prismSequence[prismActiveColor].hex,
-                color: prismSequence[prismActiveColor].hex
+                // Every even index is a color, every odd index is "off" (black)
+                backgroundColor: prismActiveColor % 2 === 0 
+                  ? prismSequence[Math.floor(prismActiveColor / 2)].hex 
+                  : '#000000',
+                color: prismActiveColor % 2 === 0 
+                  ? prismSequence[Math.floor(prismActiveColor / 2)].hex 
+                  : '#000000'
               }}
             >
               <div className="prism-pulsar-inner" />
