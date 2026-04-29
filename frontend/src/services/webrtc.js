@@ -43,15 +43,21 @@ export class WebRTCService {
       this.socket.emit('join-room', this.roomId);
     });
 
+    this.socket.on('room-members', async (members) => {
+      console.log('[Signaling] Existing members in room:', members);
+      // If we are the initiator and there's already someone here, start the offer
+      if (this.isInitiator && members.length > 0 && !this.peerConnection) {
+        this.targetPeerId = members[0]; // Simple P2P
+        this.initiateOffer();
+      }
+    });
+
     this.socket.on('user-joined', async (peerId) => {
       console.log('[Signaling] Peer joined:', peerId);
       // If we are the initiator (Sender), we create the offer when someone joins
-      if (this.isInitiator) {
+      if (this.isInitiator && !this.peerConnection) {
         this.targetPeerId = peerId;
-        this.setupPeerConnection();
-        const offer = await this.peerConnection.createOffer();
-        await this.peerConnection.setLocalDescription(offer);
-        this.socket.emit('webrtc-offer', { target: peerId, offer });
+        this.initiateOffer();
       }
     });
 
@@ -73,6 +79,7 @@ export class WebRTCService {
     this.socket.on('webrtc-ice-candidate', async ({ sender, candidate }) => {
       if (this.peerConnection) {
         try {
+          console.log('[WebRTC] Adding ICE candidate from', sender);
           await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (e) {
           console.error('[WebRTC] Error adding ICE candidate', e);
@@ -85,6 +92,19 @@ export class WebRTCService {
       if (this.callbacks.onPeerDisconnected) this.callbacks.onPeerDisconnected();
       this.disconnect();
     });
+  }
+
+  async initiateOffer() {
+    console.log('[WebRTC] Initiating offer to', this.targetPeerId);
+    this.setupPeerConnection();
+    try {
+      const offer = await this.peerConnection.createOffer();
+      await this.peerConnection.setLocalDescription(offer);
+      this.socket.emit('webrtc-offer', { target: this.targetPeerId, offer });
+    } catch (err) {
+      console.error('[WebRTC] Error creating offer:', err);
+      if (this.callbacks.onError) this.callbacks.onError('Failed to initiate connection');
+    }
   }
 
   setupPeerConnection() {
@@ -105,8 +125,8 @@ export class WebRTCService {
 
     this.peerConnection.onconnectionstatechange = () => {
       console.log('[WebRTC] Connection state:', this.peerConnection.connectionState);
-      if (this.peerConnection.connectionState === 'connected') {
-        if (this.callbacks.onPeerConnected) this.callbacks.onPeerConnected();
+      if (this.peerConnection.connectionState === 'failed' || this.peerConnection.connectionState === 'disconnected') {
+        if (this.callbacks.onError) this.callbacks.onError(`Connection ${this.peerConnection.connectionState}`);
       }
     };
 
@@ -123,9 +143,19 @@ export class WebRTCService {
 
   setupDataChannel() {
     this.dataChannel.binaryType = 'arraybuffer';
+    this.dataChannel.bufferedAmountLowThreshold = 65536; // 64KB
     
     this.dataChannel.onopen = () => {
       console.log('[WebRTC] Data channel open');
+      if (this.callbacks.onPeerConnected) this.callbacks.onPeerConnected();
+    };
+
+    this.dataChannel.onerror = (err) => {
+      console.error('[WebRTC] Data channel error:', err);
+    };
+
+    this.dataChannel.onclose = () => {
+      console.log('[WebRTC] Data channel closed');
     };
 
     this.dataChannel.onmessage = (event) => {
@@ -138,7 +168,7 @@ export class WebRTCService {
           if (this.callbacks.onTransferStart) this.callbacks.onTransferStart(message);
         } else if (message.type === 'eof') {
           console.log('[WebRTC] End of file');
-          const blob = new Blob(this.fileChunks);
+          const blob = new Blob(this.fileChunks, { type: this.receivingFileMeta.mimeType });
           this.fileChunks = [];
           if (this.callbacks.onFileReceived) {
             this.callbacks.onFileReceived(this.receivingFileMeta, blob);

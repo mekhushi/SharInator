@@ -108,6 +108,7 @@ export default function TransferPage({ onBack }) {
       
       // Re-initialize with real roomId
       webrtcRef.current.disconnect();
+      setStatusText('Handshake successful! Connecting...');
       initializeWebRTC(roomId, assignedRole === 'sender');
     };
 
@@ -127,11 +128,12 @@ export default function TransferPage({ onBack }) {
   };
 
   const initializeWebRTC = (roomId, isInitiator) => {
+    setStatusText('Negotiating connection...');
     webrtcRef.current = new WebRTCService(roomId, isInitiator, {
       onPeerConnected: () => {
         stopBroadcast();
         setMode('connected');
-        setStatusText(isInitiator ? 'Connected. You can now send files.' : 'Connected. Waiting for file...');
+        setStatusText(isInitiator ? 'Connected. You can now send files.' : 'Connected. Waiting for files...');
       },
       onError: (msg) => {
         setStatusText(`Error: ${msg}`);
@@ -277,12 +279,14 @@ export default function TransferPage({ onBack }) {
                     <button 
                       className="btn btn-small"
                       onClick={() => {
-                        const val = document.getElementById('manualRoomInput').value;
+                        const input = document.getElementById('manualRoomInput');
+                        const val = input.value.trim();
                         if (val) {
                           setRole('receiver');
                           setMode('connected');
-                          setStatusText('Connecting manually...');
+                          setStatusText('Joining room...');
                           initializeWebRTC(val, false);
+                          input.value = '';
                         }
                       }}
                     >

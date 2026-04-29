@@ -103,9 +103,15 @@ io.on('connection', (socket) => {
       rooms.set(roomId, new Set());
     }
     const room = rooms.get(roomId);
+    
+    // Get existing members BEFORE adding the new one
+    const members = Array.from(room);
     room.add(socket.id);
     
     console.log(`[Signaling] User ${socket.id} joined room ${roomId}. Total users in room: ${room.size}`);
+
+    // Notify the joiner about existing members
+    socket.emit('room-members', members);
 
     // Notify other peers in the room
     socket.to(roomId).emit('user-joined', socket.id);

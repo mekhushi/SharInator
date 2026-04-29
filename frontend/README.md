@@ -1,16 +1,41 @@
-# React + Vite
+# SharInator Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The SharInator frontend is a high-fidelity React application built with Vite, focused on delivering a low-latency, immersive file-sharing experience.
 
-Currently, two official plugins are available:
+## Technical Highlights
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### Audio Handshake Service
+The `audioHandshake.js` service manages the generation and detection of ultrasonic frequencies.
+- Frequency Range: 16kHz - 18kHz.
+- FFT Size: 8192 for high-resolution frequency detection.
+- Echo Cancellation: Disabled for pure frequency capture.
 
-## React Compiler
+### WebRTC Service
+The `webrtc.js` service handles the peer-to-peer lifecycle.
+- ICE Servers: Configured for NAT traversal.
+- Data Channel: `file-transfer` channel with `arraybuffer` binary type.
+- Backpressure Management: Implements `onbufferedamountlow` to prevent memory overflow during large file transfers.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 3D Component Architecture
+The `Background3D.jsx` component provides a generative visual environment.
+- Post-processing: Bloom and Chromatic Aberration effects for a premium "cyber" feel.
+- Parallax: Integrated mouse/motion-based perspective shifts.
 
-## Expanding the ESLint configuration
+## Development
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Environment Variables
+Ensure `VITE_BACKEND_URL` is set to your signaling server.
+
+### Scripts
+- `npm run dev`: Start the development server.
+- `npm run build`: Generate production-ready assets.
+- `npm run lint`: Run ESLint for code quality.
+
+## Permissions
+The application requires the following browser permissions:
+- Microphone: For ultrasonic frequency detection.
+- Motion (iOS): For "Shake-to-Share" functionality.
+
+---
+
+Built with React, Vite, and Three.js.
